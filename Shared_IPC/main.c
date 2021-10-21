@@ -5,6 +5,9 @@
 #include <sys/types.h>    //System defined types
 #include <sys/ipc.h>	  //IPC Permission
 #include <sys/shm.h>	  //Shared memory requests
+#include <sys/time.h>
+#include <unistd.h>
+#include <time.h>
 
 //Program Definitions
 #define SHMKEY 0x77000 + 01  //Shared memory key
@@ -25,6 +28,22 @@ typedef struct {
 struct sharedmem_struct {
         stud students[STDAMNT];
 };
+
+/*Each index corresponds to the month
+JAN = 0
+FEB = 1
+MAR = 2
+APR = 3
+MAY = 4
+JUN = 5
+JUL = 6
+AUG = 7
+SEP = 8
+OCT = 9
+NOV = 10
+DEC = 11
+*/
+const int MONTH_DAYS[12] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
 
 //Program Functions
 //Calculate the Average GPA
@@ -74,9 +93,7 @@ int main () {
                 perror("shmget()\n");
                 exit(-1);
     }
-	else {
-        printf("shmget() passed... shm_id=%i\n", shm_id);
-    }
+    //Else Successful
 
     //Attempt to attatch variable z to shared memory segment
     z = (struct sharedmem_struct*) shmat(shm_id, 0, SHM_RDONLY);
@@ -104,6 +121,77 @@ int main () {
     for (i = 0; i < STDAMNT; i++) {
         printf("%s %s\n", z->students[i].firstname, z->students[i].lastname);
     }
+
+    //Processing date information
+    //Counters for user activity
+    int one_day_ago, two_day_ago;
+    int one_day_count = 0;
+    int two_day_count = 0;
+    int three_day_count = 0;
+    int login_day;
+    int login_month;
+    int curr_day;
+    char time_buffer[20];
+    char day_temp[3];
+
+    //Getting the current date and time information
+    time_t t = time(NULL);
+    struct tm tm = *localtime(&t);
+    curr_day = (int)tm.tm_mday;
+ 
+    printf("\n_____ LogIn Statistics _____\n");
+    for (i = 0; i < STDAMNT; i++) {
+        strcpy(time_buffer, z->students[i].lastlogged);
+
+        strncpy(day_temp, time_buffer+8, 2);
+        login_day = atoi(day_temp);
+        strncpy(day_temp, time_buffer+5, 2);
+        login_month = atoi(day_temp);
+        //Adjust for array processing (account for index)
+        login_month = login_month - 1;
+
+        one_day_ago = curr_day - 1;
+        two_day_ago = curr_day - 2;
+
+        if (one_day_ago <= 0 ) {
+            login_month = login_month - 1;
+
+            if (login_month < 0) {
+                login_month = 11;
+                one_day_ago = MONTH_DAYS[login_month];
+            }
+            else {
+                one_day_ago = MONTH_DAYS[login_month];
+            }
+        } 
+        if (two_day_ago <= 0) {
+            login_month = login_month - 1;
+
+            if (login_month < 0) {
+                login_month = 11;
+                two_day_ago = MONTH_DAYS[login_month] - 1;
+            }
+            else {
+                two_day_ago = MONTH_DAYS[login_month] - 1;
+            }
+        }
+
+        //Check last log in
+        if (login_day == curr_day){         //Check today log in
+            one_day_count++;
+        }
+        if (login_day == one_day_ago) {  //Check yesterday login
+            two_day_count++;
+        }
+        if (login_day == two_day_ago) {  //Check two days ago
+            three_day_count++;
+        }
+    }
+
+    //Display info
+    printf("Users logged in today: %i\n", one_day_count);
+    printf("Users logged in yesterday: %i\n", two_day_count);
+    printf("Users loggin in two days ago: %i\n", three_day_count);
     
     //Detatch Variable from shared memory
     shmdt((void*) z);
